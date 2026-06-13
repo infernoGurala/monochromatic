@@ -225,7 +225,10 @@
                     <div class="logs-container">
                         <div class="logs-header">
                             <span>Process Console Logs</span>
-                            <button class="logs-clear" id="logs-scroll-btn">Auto-scroll</button>
+                            <div style="display: flex; gap: 1rem; align-items: center;">
+                                <button class="logs-clear" id="copy-log-btn">Copy Log</button>
+                                <button class="logs-clear" id="logs-scroll-btn">Auto-scroll</button>
+                            </div>
                         </div>
                         <pre class="logs-output" id="logs-output-text">Ready to launch task...</pre>
                     </div>

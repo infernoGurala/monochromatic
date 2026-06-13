@@ -149,7 +149,7 @@ def _sanitize_highlights(raw_highlights: object, duration: float) -> List[Dict]:
 
         # Flexible start_time lookup
         start_val = None
-        for key in ("start_time", "start", "startTime", "start_sec", "start_seconds"):
+        for key in ("start_time", "start", "startTime", "start_sec", "start_seconds", "time", "timestamp", "at"):
             if key in item and item[key] is not None:
                 start_val = item[key]
                 break
@@ -163,8 +163,12 @@ def _sanitize_highlights(raw_highlights: object, duration: float) -> List[Dict]:
                 break
         end = _coerce_float(end_val, default=-1.0)
 
-        if start < 0 or end <= start:
+        if start < 0:
             continue
+
+        if end <= start:
+            # Fallback: estimate end time as start_time + 30.0 seconds
+            end = start + 30.0
 
         if max_end != float("inf"):
             start = min(start, max_end)

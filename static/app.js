@@ -111,6 +111,23 @@ document.addEventListener('DOMContentLoaded', () => {
         logsScrollBtn.style.color = autoScrollLogs ? 'var(--text-primary)' : 'var(--text-muted)';
     });
 
+    // Copy Logs to Clipboard
+    const copyLogBtn = document.getElementById('copy-log-btn');
+    copyLogBtn.addEventListener('click', () => {
+        const logsText = logsOutputText.textContent;
+        navigator.clipboard.writeText(logsText).then(() => {
+            const originalText = copyLogBtn.textContent;
+            copyLogBtn.textContent = 'Copied!';
+            copyLogBtn.style.color = 'var(--accent-color)';
+            setTimeout(() => {
+                copyLogBtn.textContent = originalText;
+                copyLogBtn.style.color = 'var(--text-muted)';
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy logs: ', err);
+        });
+    });
+
     // Start Generation Flow
     generateBtn.addEventListener('click', async () => {
         const url = videoUrlInput.value.trim();
