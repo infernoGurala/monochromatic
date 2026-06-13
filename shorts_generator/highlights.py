@@ -137,10 +137,24 @@ def _coerce_int(value: object, default: int = 0) -> int:
         return default
 
 
-def _sanitize_highlights(raw_highlights: object, duration: float) -> List[Dict]:
+def _sanitize_highlights(raw_highlights: object, duration: float, clip_duration: str = "auto") -> List[Dict]:
     """Normalize model output into the expected shape; skip invalid entries."""
     if not isinstance(raw_highlights, list):
         return []
+
+    # Map clip duration settings to min and target seconds
+    if clip_duration == "30":
+        min_dur = 15.0
+        target_dur = 30.0
+    elif clip_duration == "60":
+        min_dur = 45.0
+        target_dur = 60.0
+    elif clip_duration == "90":
+        min_dur = 75.0
+        target_dur = 90.0
+    else:  # "auto"
+        min_dur = 35.0  # Let it be slightly flexible for auto, but default to 45s target
+        target_dur = 45.0
 
     max_end = duration if duration > 0 else float("inf")
     cleaned: List[Dict] = []
@@ -167,9 +181,10 @@ def _sanitize_highlights(raw_highlights: object, duration: float) -> List[Dict]:
         if start < 0:
             continue
 
-        if end <= start:
-            # Fallback: estimate end time as start_time + 30.0 seconds
-            end = start + 30.0
+        # If end_time is missing, invalid, or the clip duration is shorter than target minimum, extend it
+        current_dur = end - start
+        if end <= start or current_dur < min_dur:
+            end = start + target_dur
 
         if max_end != float("inf"):
             start = min(start, max_end)
@@ -306,7 +321,7 @@ def call_highlight_api(
                 raw_highlights = parsed.get("highlights")
             else:
                 raw_highlights = None
-            highlights = _sanitize_highlights(raw_highlights, duration=duration)
+            highlights = _sanitize_highlights(raw_highlights, duration=duration, clip_duration=clip_duration)
             if highlights:
                 return {"highlights": highlights}
             last_error = "no valid highlights in response"
