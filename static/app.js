@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const aspect_ratio = document.querySelector('input[name="aspect_ratio"]:checked').value;
         const format = document.getElementById('format').value;
         const language = document.getElementById('language').value;
+        const faceTracking = document.getElementById('face_tracking').checked;
 
         // Reset progress and hide previous results
         resetProgressSteps();
@@ -142,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, mode, num_clips: numClips, aspect_ratio, format, language })
+                body: JSON.stringify({ url, mode, num_clips: numClips, aspect_ratio, format, language, face_tracking: faceTracking })
             });
 
             if (res.status === 409) {

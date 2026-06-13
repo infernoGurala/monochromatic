@@ -2,10 +2,9 @@
 
 Two stages per highlight:
   1. Cut the source video to [start, end] with ffmpeg (re-encoded, audio kept).
-  2. Reframe the cut to the target aspect ratio. For 9:16 we slide a vertical
-     window horizontally across the frame to keep faces centred (Haar
-     cascade — same approach as the original repo, no external models).
-     Then, burn in styled active word-level colored subtitles.
+  2. Reframe the cut to the target aspect ratio.
+     - If face_tracking is enabled: OpenCV face tracking + burn-in subtitles.
+     - If face_tracking is disabled: High-speed ffmpeg center crop + burn-in subtitles.
 """
 import os
 import re
@@ -58,7 +57,6 @@ def _generate_ass_file(words: List[dict], start_offset: float, duration: float, 
     for w in words:
         w_start = w["start"] - start_offset
         w_end = w["end"] - start_offset
-        # Word falls within the current short's duration (with small buffer)
         if w_start >= -0.5 and w_end <= duration + 0.5:
             clip_words.append({
                 "start": max(0.0, w_start),
@@ -100,7 +98,6 @@ def _generate_ass_file(words: List[dict], start_offset: float, duration: float, 
             text_parts = []
             for other_w in chunk:
                 if other_w == active_word:
-                    # Highlight active word in yellow uppercase
                     text_parts.append(f"{{\\c&H0000FFFF&}}{other_w['word'].upper()}{{\\c}}")
                 else:
                     text_parts.append(other_w['word'])
@@ -220,6 +217,50 @@ def _reframe_vertical(in_path: str, out_path: str, aspect_ratio: str, ass_path: 
     return out_path
 
 
+def _reframe_center_ffmpeg(in_path: str, out_path: str, aspect_ratio: str, ass_path: Optional[str] = None) -> str:
+    """High-speed center crop via ffmpeg (avoids OpenCV and prevents segmentation faults)."""
+    target_ratio = _ratio(aspect_ratio)
+    
+    try:
+        import cv2  # type: ignore
+        cap = cv2.VideoCapture(in_path)
+        src_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        src_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.release()
+    except Exception:
+        src_w, src_h = 1280, 720
+
+    if target_ratio < src_w / src_h:
+        crop_h = src_h
+        crop_w = int(crop_h * target_ratio)
+    else:
+        crop_w = src_w
+        crop_h = int(crop_w / target_ratio)
+        
+    crop_w = max(2, crop_w - (crop_w % 2))
+    crop_h = max(2, crop_h - (crop_h % 2))
+    
+    x = (src_w - crop_w) // 2
+    y = (src_h - crop_h) // 2
+    
+    filters = [f"crop={crop_w}:{crop_h}:{x}:{y}"]
+    if ass_path and os.path.exists(ass_path):
+        filters.append(f"ass={ass_path}")
+        
+    filter_str = ",".join(filters)
+    
+    cmd = [
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-i", in_path,
+        "-vf", filter_str,
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "128k",
+        out_path
+    ]
+    subprocess.run(cmd, check=True)
+    return out_path
+
+
 def crop_clip_local(
     source_path: str,
     start_time: float,
@@ -227,12 +268,16 @@ def crop_clip_local(
     aspect_ratio: str,
     out_path: str,
     ass_path: Optional[str] = None,
+    face_tracking: bool = False,
 ) -> str:
     """Cut + reframe one highlight, returning the local mp4 path."""
     cut_path = out_path + ".cut.mp4"
     try:
         _cut_subclip(source_path, start_time, end_time, cut_path)
-        _reframe_vertical(cut_path, out_path, aspect_ratio, ass_path=ass_path)
+        if face_tracking:
+            _reframe_vertical(cut_path, out_path, aspect_ratio, ass_path=ass_path)
+        else:
+            _reframe_center_ffmpeg(cut_path, out_path, aspect_ratio, ass_path=ass_path)
     finally:
         if os.path.exists(cut_path):
             os.remove(cut_path)
@@ -245,6 +290,7 @@ def crop_highlights_local(
     transcript: Dict,
     aspect_ratio: str = "9:16",
     out_dir: Optional[str] = None,
+    face_tracking: bool = False,
 ) -> List[Dict]:
     out_dir = out_dir or LOCAL_OUTPUT_DIR
     os.makedirs(out_dir, exist_ok=True)
@@ -280,7 +326,8 @@ def crop_highlights_local(
                 float(h["end_time"]),
                 aspect_ratio,
                 out_path,
-                ass_path=ass_path if has_subtitles else None
+                ass_path=ass_path if has_subtitles else None,
+                face_tracking=face_tracking
             )
             results.append({**h, "clip_url": out_path})
         except Exception as e:

@@ -61,7 +61,7 @@ class ThreadSafeLogger:
         with self.lock:
             return self.results
 
-    def run_generation(self, url, mode, num_clips, aspect_ratio, download_format, language):
+    def run_generation(self, url, mode, num_clips, aspect_ratio, download_format, language, face_tracking=False):
         self.reset()
         with self.lock:
             self.status = "downloading"
@@ -103,7 +103,8 @@ class ThreadSafeLogger:
                     aspect_ratio=aspect_ratio,
                     download_format=download_format,
                     language=language,
-                    mode=mode
+                    mode=mode,
+                    face_tracking=face_tracking
                 )
 
                 # Format clip URLs for static serving in local mode
@@ -222,11 +223,12 @@ def start_generation():
     aspect_ratio = data.get("aspect_ratio", "9:16")
     download_format = data.get("format", "720")
     language = data.get("language") or None
+    face_tracking = bool(data.get("face_tracking", False))
 
     # Start generation thread
     thread = threading.Thread(
         target=task_manager.run_generation,
-        args=(url, mode, num_clips, aspect_ratio, download_format, language)
+        args=(url, mode, num_clips, aspect_ratio, download_format, language, face_tracking)
     )
     thread.daemon = True
     thread.start()
