@@ -48,7 +48,8 @@ Content type: {content_type} | Density: {density}
 Your task: identify the most viral-worthy highlights from the transcript.
 
 Rules:
-- Every highlight must open with a strong HOOK — a line that grabs attention within the first 3 seconds
+- HOOK START: Start every highlight at an engaging, impulsive, or high-energy sentence (e.g. exclamations, surprising statements, exciting setups) within the first 3 seconds.
+- RESOLVED ENDING: Choose an ending that leaves the viewer with a satisfying, resolved thought, punchline, or a natural cliffhanger. Do NOT cut off mid-thought.
 - {duration_instruction}
 - CRITICAL: A highlight must span multiple consecutive transcript segments to build up a duration matching the target length instructions (e.g., at least 45-90 seconds for auto). Do NOT output short clips of only 5-15 seconds; calculate the `end_time` by looking ahead in the transcript.
 - Never cut mid-sentence or mid-thought — each clip must feel complete and self-contained
@@ -137,7 +138,12 @@ def _coerce_int(value: object, default: int = 0) -> int:
         return default
 
 
-def _sanitize_highlights(raw_highlights: object, duration: float, clip_duration: str = "auto") -> List[Dict]:
+def _sanitize_highlights(
+    raw_highlights: object,
+    duration: float,
+    clip_duration: str = "auto",
+    transcript: Optional[Dict] = None,
+) -> List[Dict]:
     """Normalize model output into the expected shape; skip invalid entries."""
     if not isinstance(raw_highlights, list):
         return []
@@ -158,6 +164,8 @@ def _sanitize_highlights(raw_highlights: object, duration: float, clip_duration:
 
     max_end = duration if duration > 0 else float("inf")
     cleaned: List[Dict] = []
+    segments = transcript.get("segments", []) if transcript else []
+
     for item in raw_highlights:
         if not isinstance(item, dict):
             continue
@@ -181,10 +189,46 @@ def _sanitize_highlights(raw_highlights: object, duration: float, clip_duration:
         if start < 0:
             continue
 
-        # If end_time is missing, invalid, or the clip duration is shorter than target minimum, extend it
-        current_dur = end - start
-        if end <= start or current_dur < min_dur:
-            end = start + target_dur
+        # Segment-aware alignment and duration extension
+        if segments:
+            # Find closest segment index for start
+            start_idx = 0
+            min_start_diff = float("inf")
+            for idx, s in enumerate(segments):
+                diff = abs(s["start"] - start)
+                if diff < min_start_diff:
+                    min_start_diff = diff
+                    start_idx = idx
+
+            # Find closest segment index for end
+            end_idx = start_idx
+            min_end_diff = float("inf")
+            for idx, s in enumerate(segments):
+                diff = abs(s["end"] - end)
+                if diff < min_end_diff:
+                    min_end_diff = diff
+                    end_idx = idx
+
+            if end_idx < start_idx:
+                end_idx = start_idx
+
+            # Extend to target duration if too short by checking consecutive segments
+            while end_idx < len(segments) - 1:
+                current_dur = segments[end_idx]["end"] - segments[start_idx]["start"]
+                if current_dur >= min_dur and (end_val is not None and end > start):
+                    # Only stop if it meets user/model specified end or target minimums
+                    break
+                if current_dur >= target_dur:
+                    break
+                end_idx += 1
+
+            start = segments[start_idx]["start"]
+            end = segments[end_idx]["end"]
+        else:
+            # Fallback without transcript
+            current_dur = end - start
+            if end <= start or current_dur < min_dur:
+                end = start + target_dur
 
         if max_end != float("inf"):
             start = min(start, max_end)
@@ -282,6 +326,7 @@ def call_highlight_api(
     is_chunk: bool = False,
     llm_fn: Optional[LLMFn] = None,
     clip_duration: str = "auto",
+    transcript: Optional[Dict] = None,
 ) -> Dict:
     # Ask for ~2× the user's target so dedupe has headroom, but cap so the model
     # doesn't have to generate a huge JSON payload (which times out gpt-5-mini).
@@ -321,7 +366,7 @@ def call_highlight_api(
                 raw_highlights = parsed.get("highlights")
             else:
                 raw_highlights = None
-            highlights = _sanitize_highlights(raw_highlights, duration=duration, clip_duration=clip_duration)
+            highlights = _sanitize_highlights(raw_highlights, duration=duration, clip_duration=clip_duration, transcript=transcript)
             if highlights:
                 return {"highlights": highlights}
             last_error = "no valid highlights in response"
@@ -389,7 +434,7 @@ def get_highlights(
             offset = chunk.get("_offset", 0)
             text = build_transcript_text(chunk)
             print(f"[highlights] chunk {i + 1}/{len(chunks)} (offset {offset:.0f}s)", flush=True)
-            result = call_highlight_api(text, content_info, chunk["duration"], num_clips=num_clips, is_chunk=True, llm_fn=llm_fn, clip_duration=clip_duration)
+            result = call_highlight_api(text, content_info, chunk["duration"], num_clips=num_clips, is_chunk=True, llm_fn=llm_fn, clip_duration=clip_duration, transcript=chunk)
             for h in result.get("highlights", []):
                 h["start_time"] = float(h["start_time"]) + offset
                 h["end_time"] = float(h["end_time"]) + offset
@@ -397,7 +442,7 @@ def get_highlights(
         highlights = dedupe_highlights(all_highlights)
     else:
         text = build_transcript_text(transcript)
-        result = call_highlight_api(text, content_info, duration, num_clips=num_clips, llm_fn=llm_fn, clip_duration=clip_duration)
+        result = call_highlight_api(text, content_info, duration, num_clips=num_clips, llm_fn=llm_fn, clip_duration=clip_duration, transcript=transcript)
         highlights = dedupe_highlights(result.get("highlights", []))
 
     return {"highlights": highlights}
