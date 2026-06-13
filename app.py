@@ -61,12 +61,12 @@ class ThreadSafeLogger:
         with self.lock:
             return self.results
 
-    def run_generation(self, url, mode, num_clips, aspect_ratio, download_format, language, face_tracking=False):
+    def run_generation(self, url, num_clips, aspect_ratio, download_format, language, face_tracking=False, clip_duration="auto", crop_start=None, crop_end=None):
         self.reset()
         with self.lock:
             self.status = "downloading"
             self.progress = 5
-            self.logs = [f"Starting shorts generation for: {url} (mode: {mode})\n"]
+            self.logs = [f"Starting shorts generation for: {url}\n"]
 
         class LogRedirector:
             def __init__(self, logger_instance):
@@ -103,12 +103,14 @@ class ThreadSafeLogger:
                     aspect_ratio=aspect_ratio,
                     download_format=download_format,
                     language=language,
-                    mode=mode,
-                    face_tracking=face_tracking
+                    face_tracking=face_tracking,
+                    clip_duration=clip_duration,
+                    crop_start=crop_start,
+                    crop_end=crop_end
                 )
 
-                # Format clip URLs for static serving in local mode
-                if mode == "local" and "shorts" in result:
+                # Format clip URLs for static serving
+                if "shorts" in result:
                     for short in result["shorts"]:
                         if short.get("clip_url"):
                             filename = os.path.basename(short["clip_url"])
@@ -177,7 +179,10 @@ def write_env(new_config):
         
     for k, v in new_config.items():
         if k not in keys_written:
+            if updated_lines and not updated_lines[-1].endswith("\n"):
+                updated_lines[-1] = updated_lines[-1] + "\n"
             updated_lines.append(f"{k}={v}\n")
+            keys_written.add(k)
             
     with open(".env", "w") as f:
         f.writelines(updated_lines)
@@ -196,16 +201,29 @@ def serve_output(filename):
 
 @app.route('/api/config', methods=['GET'])
 def get_config():
-    return jsonify(read_env())
+    config = read_env()
+    if os.path.exists("API.txt"):
+        with open("API.txt", "r") as f:
+            config["GROQ_KEYS"] = f.read()
+    return jsonify(config)
 
 @app.route('/api/config', methods=['POST'])
 def save_config():
     data = request.json or {}
+    if "GROQ_KEYS" in data:
+        groq_keys = data.pop("GROQ_KEYS")
+        with open("API.txt", "w") as f:
+            f.write(groq_keys)
     write_env(data)
     # Reload environment
     from dotenv import load_dotenv
     load_dotenv(override=True)
-    return jsonify({"status": "success", "config": read_env()})
+    
+    config = read_env()
+    if os.path.exists("API.txt"):
+        with open("API.txt", "r") as f:
+            config["GROQ_KEYS"] = f.read()
+    return jsonify({"status": "success", "config": config})
 
 @app.route('/api/generate', methods=['POST'])
 def start_generation():
@@ -213,27 +231,54 @@ def start_generation():
     if status_info["status"] not in ("idle", "completed", "failed"):
         return jsonify({"error": "A generation task is already running."}), 409
 
+    from shorts_generator.config import reset_cancel
+    reset_cancel()
+
     data = request.json or {}
     url = data.get("url")
     if not url:
         return jsonify({"error": "Video URL is required."}), 400
 
-    mode = data.get("mode", "api")
     num_clips = int(data.get("num_clips", 3))
     aspect_ratio = data.get("aspect_ratio", "9:16")
     download_format = data.get("format", "720")
     language = data.get("language") or None
     face_tracking = bool(data.get("face_tracking", False))
 
+    clip_duration = data.get("clip_duration", "auto")
+    crop_start = data.get("crop_start") or None
+    crop_end = data.get("crop_end") or None
+
     # Start generation thread
     thread = threading.Thread(
         target=task_manager.run_generation,
-        args=(url, mode, num_clips, aspect_ratio, download_format, language, face_tracking)
+        args=(url, num_clips, aspect_ratio, download_format, language, face_tracking, clip_duration, crop_start, crop_end)
     )
     thread.daemon = True
     thread.start()
 
     return jsonify({"status": "started"})
+
+@app.route('/api/terminate', methods=['POST'])
+def terminate_generation():
+    from shorts_generator.config import cancel_generation
+    cancel_generation()
+
+    # Kill any child processes (like ffmpeg/yt-dlp)
+    import os
+    import subprocess
+    try:
+        pid = os.getpid()
+        subprocess.run(["pkill", "-P", str(pid)])
+    except Exception as e:
+        print(f"Error terminating child processes: {e}")
+
+    task_manager.status = "failed"
+    task_manager.error_message = "Generation terminated by user."
+    task_manager.progress = 100
+    task_manager.logs.append("\n🛑 Generation Terminated by User!\n")
+
+    return jsonify({"status": "terminated"})
 
 @app.route('/api/status', methods=['GET'])
 def get_status():

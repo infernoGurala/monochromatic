@@ -4,44 +4,85 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MUAPI_API_KEY = os.getenv("MUAPI_API_KEY", "").strip()
-MUAPI_BASE_URL = os.getenv("MUAPI_BASE_URL", "https://api.muapi.ai/api/v1").rstrip("/")
-
-POLL_INTERVAL_SECONDS = float(os.getenv("MUAPI_POLL_INTERVAL", "5"))
-POLL_TIMEOUT_SECONDS = float(os.getenv("MUAPI_POLL_TIMEOUT", "600"))
-
-# Local-mode (--mode local) settings — only consulted when running offline.
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").strip().lower()
-LOCAL_WHISPER_MODEL = os.getenv("LOCAL_WHISPER_MODEL", "base")
-LOCAL_WHISPER_DEVICE = os.getenv("LOCAL_WHISPER_DEVICE", "auto")  # auto / cpu / cuda
-LOCAL_OUTPUT_DIR = os.getenv("LOCAL_OUTPUT_DIR", "output")
+# LLM & Pipeline Settings
+def get_local_whisper_model() -> str:
+    load_dotenv(override=True)
+    return os.getenv("LOCAL_WHISPER_MODEL", "base").strip()
 
 
-def require_api_key() -> str:
-    if not MUAPI_API_KEY:
-        raise RuntimeError(
-            "MUAPI_API_KEY is not set. Add it to your .env file or export it as an env var."
-        )
-    return MUAPI_API_KEY
+def get_local_whisper_device() -> str:
+    load_dotenv(override=True)
+    return os.getenv("LOCAL_WHISPER_DEVICE", "auto").strip()  # auto / cpu / cuda
+
+
+def get_local_output_dir() -> str:
+    load_dotenv(override=True)
+    return os.getenv("LOCAL_OUTPUT_DIR", "output").strip()
+
+
+def get_llm_provider() -> str:
+    load_dotenv(override=True)
+    return os.getenv("LLM_PROVIDER", "openai").strip().lower()
+
+
+def get_openai_model() -> str:
+    load_dotenv(override=True)
+    return os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+
+
+def get_gemini_model() -> str:
+    load_dotenv(override=True)
+    return os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+
+
+def get_ollama_model() -> str:
+    load_dotenv(override=True)
+    return os.getenv("OLLAMA_MODEL", "gemma4:e4b").strip()
+
+
+def get_ollama_base_url() -> str:
+    load_dotenv(override=True)
+    return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").strip()
+
+
+def get_groq_model() -> str:
+    load_dotenv(override=True)
+    return os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
 
 
 def require_openai_key() -> str:
-    if not OPENAI_API_KEY:
+    load_dotenv(override=True)
+    key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not key:
         raise RuntimeError(
-            "OPENAI_API_KEY is not set. Local mode needs an OpenAI key for highlight ranking. "
-            "Add it to your .env or export it, or switch back to --mode api."
+            "OPENAI_API_KEY is not set. Please add it to your .env or configure it in the dashboard settings."
         )
-    return OPENAI_API_KEY
+    return key
 
 
 def require_gemini_key() -> str:
-    if not GEMINI_API_KEY:
+    load_dotenv(override=True)
+    key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not key:
         raise RuntimeError(
-            "GEMINI_API_KEY is not set. Local mode needs a Gemini key when LLM_PROVIDER=gemini. "
-            "Add it to your .env or export it, or switch LLM_PROVIDER back to openai."
+            "GEMINI_API_KEY is not set. Please add it to your .env or configure it in the dashboard settings."
         )
-    return GEMINI_API_KEY
+    return key
+
+
+_cancelled = False
+
+
+def is_cancelled() -> bool:
+    global _cancelled
+    return _cancelled
+
+
+def cancel_generation():
+    global _cancelled
+    _cancelled = True
+
+
+def reset_cancel():
+    global _cancelled
+    _cancelled = False

@@ -256,6 +256,11 @@ select {
     transition: all 0.2s ease;
 }
 
+select option {
+    background-color: #0f1524;
+    color: var(--text-primary);
+}
+
 select:hover, select:focus {
     border-color: var(--accent-indigo);
     background-color: rgba(255, 255, 255, 0.05);
@@ -367,6 +372,22 @@ select:hover, select:focus {
 .btn-secondary:hover {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
+}
+
+.btn-danger {
+    background: var(--accent-danger);
+    color: var(--text-primary);
+    box-shadow: 0 4px 16px rgba(244, 63, 94, 0.3);
+}
+
+.btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(244, 63, 94, 0.45);
+    background: #e11d48;
+}
+
+.btn-danger:active {
+    transform: translateY(0);
 }
 
 /* Workspace Area styling */

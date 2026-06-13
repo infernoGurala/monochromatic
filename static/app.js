@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const shortsGrid = document.getElementById('shorts-grid');
     const serverStatusIndicator = document.querySelector('.status-indicator');
     const serverStatusText = document.querySelector('.server-status span:last-child');
+    const terminateBtn = document.getElementById('terminate-btn');
     
     // API State and Polling Config
     let pollInterval = null;
@@ -34,31 +35,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Toggle showing correct Local Key input wrapper
     llmProviderSelect.addEventListener('change', (e) => {
-        if (e.target.value === 'openai') {
+        const val = e.target.value;
+        openaiKeyWrapper.classList.add('hidden');
+        geminiKeyWrapper.classList.add('hidden');
+        document.getElementById('ollama-model-wrapper').classList.add('hidden');
+        document.getElementById('ollama-url-wrapper').classList.add('hidden');
+        document.getElementById('groq-keys-wrapper').classList.add('hidden');
+        document.getElementById('groq-model-wrapper').classList.add('hidden');
+
+        if (val === 'openai') {
             openaiKeyWrapper.classList.remove('hidden');
-            geminiKeyWrapper.classList.add('hidden');
-        } else {
-            openaiKeyWrapper.classList.add('hidden');
+        } else if (val === 'gemini') {
             geminiKeyWrapper.classList.remove('hidden');
+        } else if (val === 'ollama') {
+            document.getElementById('ollama-model-wrapper').classList.remove('hidden');
+            document.getElementById('ollama-url-wrapper').classList.remove('hidden');
+        } else if (val === 'groq') {
+            document.getElementById('groq-keys-wrapper').classList.remove('hidden');
+            document.getElementById('groq-model-wrapper').classList.remove('hidden');
         }
     });
 
-    // Custom Radio Toggles: Generation Mode
-    const modeBtnApi = document.getElementById('mode-api-btn');
-    const modeBtnLocal = document.getElementById('mode-local-btn');
-    const modeRadios = document.getElementsByName('mode');
 
-    modeBtnApi.addEventListener('click', () => {
-        modeBtnApi.classList.add('active');
-        modeBtnLocal.classList.remove('active');
-        document.querySelector('input[name="mode"][value="api"]').checked = true;
-    });
-
-    modeBtnLocal.addEventListener('click', () => {
-        modeBtnLocal.classList.add('active');
-        modeBtnApi.classList.remove('active');
-        document.querySelector('input[name="mode"][value="local"]').checked = true;
-    });
 
     // Custom Radio Toggles: Aspect Ratio
     const ratioBtns = document.querySelectorAll('.ratio-btn');
@@ -76,10 +74,13 @@ document.addEventListener('DOMContentLoaded', () => {
         saveKeysBtn.textContent = 'Saving...';
         
         const payload = {
-            MUAPI_API_KEY: document.getElementById('muapi_key').value.trim(),
             LLM_PROVIDER: llmProviderSelect.value,
             OPENAI_API_KEY: document.getElementById('openai_key').value.trim(),
             GEMINI_API_KEY: document.getElementById('gemini_key').value.trim(),
+            OLLAMA_MODEL: document.getElementById('ollama_model').value.trim(),
+            OLLAMA_BASE_URL: document.getElementById('ollama_url').value.trim(),
+            GROQ_KEYS: document.getElementById('groq_keys').value.trim(),
+            GROQ_MODEL: document.getElementById('groq_model').value.trim(),
         };
 
         try {
@@ -118,17 +119,20 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const mode = document.querySelector('input[name="mode"]:checked').value;
         const numClips = numClipsInput.value;
         const aspect_ratio = document.querySelector('input[name="aspect_ratio"]:checked').value;
         const format = document.getElementById('format').value;
         const language = document.getElementById('language').value;
         const faceTracking = document.getElementById('face_tracking').checked;
+        const clipDuration = document.getElementById('clip_duration').value;
+        const cropStart = document.getElementById('crop_start').value.trim();
+        const cropEnd = document.getElementById('crop_end').value.trim();
 
         // Reset progress and hide previous results
         resetProgressSteps();
         resultsContainer.classList.add('hidden');
         progressContainer.classList.remove('hidden');
+        terminateBtn.classList.remove('hidden');
         
         // Update generate button state
         generateBtn.disabled = true;
@@ -143,7 +147,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, mode, num_clips: numClips, aspect_ratio, format, language, face_tracking: faceTracking })
+                body: JSON.stringify({
+                    url,
+                    num_clips: numClips,
+                    aspect_ratio,
+                    format,
+                    language,
+                    face_tracking: faceTracking,
+                    clip_duration: clipDuration,
+                    crop_start: cropStart,
+                    crop_end: cropEnd
+                })
             });
 
             if (res.status === 409) {
@@ -173,9 +187,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/config');
             const data = await res.json();
             
-            document.getElementById('muapi_key').value = data.MUAPI_API_KEY || '';
+
             document.getElementById('openai_key').value = data.OPENAI_API_KEY || '';
             document.getElementById('gemini_key').value = data.GEMINI_API_KEY || '';
+            document.getElementById('ollama_model').value = data.OLLAMA_MODEL || 'gemma4:e4b';
+            document.getElementById('ollama_url').value = data.OLLAMA_BASE_URL || 'http://localhost:11434';
+            document.getElementById('groq_keys').value = data.GROQ_KEYS || '';
+            document.getElementById('groq_model').value = data.GROQ_MODEL || 'llama-3.3-70b-versatile';
             
             if (data.LLM_PROVIDER) {
                 llmProviderSelect.value = data.LLM_PROVIDER;
@@ -219,13 +237,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 progressStepTitle.textContent = '🎉 Processing Complete!';
                 await loadResults();
                 resetGenerateBtn();
+                terminateBtn.classList.add('hidden');
             } else if (data.status === 'failed') {
                 clearInterval(pollInterval);
                 progressStepTitle.textContent = '❌ Generation Failed';
                 alert(`Generation Failed: ${data.error_message}`);
                 resetGenerateBtn();
+                terminateBtn.classList.add('hidden');
             } else {
                 progressStepTitle.textContent = getStepFriendlyTitle(data.status);
+                terminateBtn.classList.remove('hidden');
             }
 
         } catch (err) {
@@ -283,6 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
         progressPercentage.textContent = '0%';
         progressStepTitle.textContent = 'Initializing...';
         logsOutputText.textContent = '';
+        terminateBtn.classList.add('hidden');
     }
 
     function resetGenerateBtn() {
@@ -292,7 +314,37 @@ document.addEventListener('DOMContentLoaded', () => {
         
         serverStatusIndicator.className = 'status-indicator online';
         serverStatusText.textContent = 'System Ready';
+        terminateBtn.classList.add('hidden');
     }
+
+    // Terminate button click handler
+    terminateBtn.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to terminate all active processing for this video?')) {
+            return;
+        }
+
+        terminateBtn.disabled = true;
+        terminateBtn.textContent = 'Terminating...';
+
+        try {
+            const res = await fetch('/api/terminate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await res.json();
+            if (data.status === 'terminated') {
+                logsOutputText.textContent += '\n🛑 [System] Termination signal sent.\n';
+            } else {
+                alert('Termination request failed.');
+            }
+        } catch (err) {
+            console.error('Error terminating processes:', err);
+            alert('Error connecting to backend to terminate processes.');
+        } finally {
+            terminateBtn.disabled = false;
+            terminateBtn.textContent = 'Terminate';
+        }
+    });
 
     // Load and render generated clips
     async function loadResults() {

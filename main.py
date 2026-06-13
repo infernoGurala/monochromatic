@@ -21,16 +21,14 @@ from shorts_generator import generate_shorts
 def main() -> int:
     parser = argparse.ArgumentParser(description="AI YouTube Shorts Generator")
     parser.add_argument("url", help="YouTube URL, file:// URL, or local file path")
-    parser.add_argument(
-        "--mode",
-        choices=["api", "local"],
-        default="api",
-        help="api (default, MuAPI) or local (remote URL, file://, or local path + faster-whisper + LLM provider + ffmpeg).",
-    )
     parser.add_argument("--num-clips", type=int, default=3, help="How many shorts to render (default: 3)")
     parser.add_argument("--aspect-ratio", default="9:16", help="Output aspect ratio (default: 9:16)")
     parser.add_argument("--format", default="720", help="Source download resolution: 360 / 480 / 720 / 1080 (default: 720)")
     parser.add_argument("--language", default=None, help="Force Whisper language code, e.g. 'en' (default: auto-detect)")
+    parser.add_argument("--face-tracking", action="store_true", help="Enable OpenCV face tracking for vertical reframing")
+    parser.add_argument("--clip-duration", default="auto", choices=["auto", "30", "60", "90"], help="Sweet spot highlight target duration")
+    parser.add_argument("--crop-start", default=None, help="Segment filtering start time (e.g. '01:30' or '90')")
+    parser.add_argument("--crop-end", default=None, help="Segment filtering end time (e.g. '02:30' or '150')")
     parser.add_argument("--output-json", default=None, help="Write the full result JSON to this path")
     args = parser.parse_args()
 
@@ -41,14 +39,16 @@ def main() -> int:
             aspect_ratio=args.aspect_ratio,
             download_format=args.format,
             language=args.language,
-            mode=args.mode,
+            face_tracking=args.face_tracking,
+            clip_duration=args.clip_duration,
+            crop_start=args.crop_start,
+            crop_end=args.crop_end,
         )
     except Exception as e:
         print(f"\nFAILED: {e}", file=sys.stderr)
         return 1
 
     print("\n" + "=" * 72)
-    print(f"Mode:          {result.get('mode', args.mode)}")
     print(f"Source video:  {result['source_video_url']}")
     print(f"Highlights:    {len(result['highlights'])} candidates → kept top {len(result['shorts'])}")
     print("=" * 72)

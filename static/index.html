@@ -20,21 +20,7 @@
             </div>
 
             <nav class="sidebar-nav">
-                <!-- Mode Selection -->
-                <div class="config-group">
-                    <label class="group-label">Generation Mode</label>
-                    <div class="mode-toggle-group">
-                        <label class="mode-toggle-btn active" id="mode-api-btn">
-                            <input type="radio" name="mode" value="api" checked>
-                            <span>☁️ Cloud API</span>
-                        </label>
-                        <label class="mode-toggle-btn" id="mode-local-btn">
-                            <input type="radio" name="mode" value="local">
-                            <span>💻 Local Engine</span>
-                        </label>
-                    </div>
-                    <small class="help-text">Cloud mode uses MuAPI for fast server-side processing. Local mode runs offline on your machine.</small>
-                </div>
+
 
                 <!-- Parameters -->
                 <div class="config-group">
@@ -98,6 +84,27 @@
                     </div>
                 </div>
 
+                <div class="config-group">
+                    <label class="group-label" for="clip_duration">Clip Target Length</label>
+                    <select id="clip_duration" name="clip_duration">
+                        <option value="auto" selected>Auto (45-90s)</option>
+                        <option value="30">Short (~30s)</option>
+                        <option value="60">Medium (~60s)</option>
+                        <option value="90">Long (~90s)</option>
+                    </select>
+                </div>
+
+                <div class="config-row">
+                    <div class="config-group half">
+                        <label class="group-label" for="crop_start">Start Time</label>
+                        <input type="text" id="crop_start" name="crop_start" placeholder="e.g. 00:00" style="background-color: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-primary); padding: 0.6rem; font-size: 0.85rem; outline: none; transition: all 0.2s ease;">
+                    </div>
+                    <div class="config-group half">
+                        <label class="group-label" for="crop_end">End Time</label>
+                        <input type="text" id="crop_end" name="crop_end" placeholder="e.g. 10:00" style="background-color: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-primary); padding: 0.6rem; font-size: 0.85rem; outline: none; transition: all 0.2s ease;">
+                    </div>
+                </div>
+
                 <!-- API Key Configuration -->
                 <div class="divider"></div>
                 <div class="config-group keys-section">
@@ -105,17 +112,14 @@
                         <label class="group-label">API Settings</label>
                         <span class="save-status" id="keys-save-status">Saved</span>
                     </div>
-                    
-                    <div class="input-wrapper">
-                        <label for="muapi_key">MuAPI Key (Cloud Mode)</label>
-                        <input type="password" id="muapi_key" placeholder="Enter MuAPI key...">
-                    </div>
-                    
+
                     <div class="input-wrapper">
                         <label for="llm_provider">Local LLM Provider</label>
                         <select id="llm_provider">
                             <option value="openai">OpenAI (GPT-4o-mini)</option>
                             <option value="gemini">Gemini (2.5-Flash)</option>
+                            <option value="ollama">Ollama (gemma4:e4b)</option>
+                            <option value="groq">Groq (Auto Cycle)</option>
                         </select>
                     </div>
                     
@@ -127,6 +131,26 @@
                     <div class="input-wrapper local-key hidden" id="gemini-key-wrapper">
                         <label for="gemini_key">Gemini Key</label>
                         <input type="password" id="gemini_key" placeholder="Enter Gemini key...">
+                    </div>
+
+                    <div class="input-wrapper local-key hidden" id="ollama-model-wrapper">
+                        <label for="ollama_model">Ollama Model</label>
+                        <input type="text" id="ollama_model" value="gemma4:e4b" placeholder="e.g. gemma4:e4b">
+                    </div>
+
+                    <div class="input-wrapper local-key hidden" id="ollama-url-wrapper">
+                        <label for="ollama_url">Ollama Base URL</label>
+                        <input type="text" id="ollama_url" placeholder="http://localhost:11434">
+                    </div>
+
+                    <div class="input-wrapper local-key hidden" id="groq-keys-wrapper">
+                        <label for="groq_keys">Groq Keys (one per line)</label>
+                        <textarea id="groq_keys" placeholder="Enter Groq API Keys..." rows="3" style="background-color: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-primary); padding: 0.6rem; font-size: 0.85rem; outline: none; transition: all 0.2s ease; resize: vertical;"></textarea>
+                    </div>
+
+                    <div class="input-wrapper local-key hidden" id="groq-model-wrapper">
+                        <label for="groq_model">Groq Model</label>
+                        <input type="text" id="groq_model" value="llama-3.3-70b-versatile" placeholder="e.g. llama-3.3-70b-versatile">
                     </div>
 
                     <button type="button" class="btn btn-secondary" id="save-keys-btn">Save API Configuration</button>
@@ -163,7 +187,10 @@
                 <div class="progress-card">
                     <div class="progress-header">
                         <h4 id="progress-step-title">Initializing...</h4>
-                        <span class="percentage" id="progress-percentage">0%</span>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <span class="percentage" id="progress-percentage">0%</span>
+                            <button class="btn btn-danger hidden" id="terminate-btn" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; margin-top: 0;">Terminate</button>
+                        </div>
                     </div>
                     
                     <!-- Stepper -->
