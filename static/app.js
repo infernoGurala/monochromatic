@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize UI from .env configuration
     fetchConfig();
+    checkRunningJob();
 
     // Num Clips slider update
     numClipsInput.addEventListener('input', (e) => {
@@ -221,6 +222,32 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error fetching config:', err);
         }
     }
+
+    // Check if a job is already running on page load
+    async function checkRunningJob() {
+        try {
+            const res = await fetch('/api/status');
+            const data = await res.json();
+            if (data.status && !['idle', 'completed', 'failed'].includes(data.status)) {
+                // Restore UI to busy/processing state
+                progressContainer.classList.remove('hidden');
+                terminateBtn.classList.remove('hidden');
+                generateBtn.disabled = true;
+                generateBtn.querySelector('.btn-text').textContent = 'Processing...';
+                generateBtn.querySelector('.spinner').classList.remove('hidden');
+                serverStatusIndicator.className = 'status-indicator busy';
+                serverStatusText.textContent = 'Generating Shorts';
+                
+                // Start status polling immediately
+                if (!pollInterval) {
+                    pollInterval = setInterval(pollStatus, 1000);
+                }
+            }
+        } catch (err) {
+            console.error('Error checking active job on load:', err);
+        }
+    }
+
 
     // Flash config save indicator badge
     function showSaveStatus() {
