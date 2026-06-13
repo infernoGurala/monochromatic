@@ -50,6 +50,7 @@ Your task: identify the most viral-worthy highlights from the transcript.
 Rules:
 - Every highlight must open with a strong HOOK — a line that grabs attention within the first 3 seconds
 - {duration_instruction}
+- CRITICAL: A highlight must span multiple consecutive transcript segments to build up a duration matching the target length instructions (e.g., at least 45-90 seconds for auto). Do NOT output short clips of only 5-15 seconds; calculate the `end_time` by looking ahead in the transcript.
 - Never cut mid-sentence or mid-thought — each clip must feel complete and self-contained
 - Clips must not overlap significantly with each other
 - Score 0-100 on viral potential (not general quality)
