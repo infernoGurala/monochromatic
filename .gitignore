@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 API.txt
 output*/
+.youtube_*.json
+youtube_token_*.json

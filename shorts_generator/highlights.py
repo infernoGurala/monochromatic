@@ -51,11 +51,12 @@ Rules:
 - HOOK START: Start every highlight at an engaging, impulsive, or high-energy sentence (e.g. exclamations, surprising statements, exciting setups) within the first 3 seconds.
 - RESOLVED ENDING: Choose an ending that leaves the viewer with a satisfying, resolved thought, punchline, or a natural cliffhanger. Do NOT cut off mid-thought.
 - {duration_instruction}
-- CRITICAL: A highlight must span multiple consecutive transcript segments to build up a duration matching the target length instructions (e.g., at least 45-90 seconds for auto). Do NOT output short clips of only 5-15 seconds; calculate the `end_time` by looking ahead in the transcript.
+- CRITICAL: A highlight must span multiple consecutive transcript segments to build up a duration matching the target length instructions. Do NOT output short clips of only 5-15 seconds; calculate the `end_time` by looking ahead in the transcript.
 - Never cut mid-sentence or mid-thought — each clip must feel complete and self-contained
 - Clips must not overlap significantly with each other
 - Score 0-100 on viral potential (not general quality)
 - {num_clips_instruction}
+- The "title" of each highlight MUST be a highly catchy, custom title that describes the specific topic of that video segment (NEVER use generic titles like 'Clip 1', 'Highlight A', or 'Section 1')
 - For each highlight, identify the single best "hook_sentence" — the opening line that would make someone stop scrolling
 - Explain in one sentence why this clip is viral ("virality_reason")
 
@@ -327,6 +328,7 @@ def call_highlight_api(
     llm_fn: Optional[LLMFn] = None,
     clip_duration: str = "auto",
     transcript: Optional[Dict] = None,
+    min_duration: float = 0.0,
 ) -> Dict:
     # Ask for ~2× the user's target so dedupe has headroom, but cap so the model
     # doesn't have to generate a huge JSON payload (which times out gpt-5-mini).
@@ -341,6 +343,8 @@ def call_highlight_api(
         duration_instruction = "Duration sweet spot: 45-70 seconds. Target exactly ~60 seconds per clip."
     elif clip_duration == "90":
         duration_instruction = "Duration sweet spot: 75-105 seconds. Target exactly ~90 seconds per clip."
+    elif min_duration > 0:
+        duration_instruction = f"Each highlight segment MUST be at least {min_duration:.1f} seconds long (i.e. end_time - start_time >= {min_duration:.1f}). Do NOT generate clips shorter than {min_duration:.1f} seconds."
     else:
         duration_instruction = "Duration sweet spot: 45-90 seconds. Go shorter (20-44s) only for a perfect standalone one-liner. Go longer (91-180s) only when a story arc needs full context to land."
 
@@ -416,6 +420,7 @@ def get_highlights(
     num_clips: int = 3,
     llm_fn: Optional[LLMFn] = None,
     clip_duration: str = "auto",
+    min_duration: float = 0.0,
 ) -> Dict:
     """Main entry point — returns {highlights: [...]} sorted by score.
 
@@ -434,7 +439,7 @@ def get_highlights(
             offset = chunk.get("_offset", 0)
             text = build_transcript_text(chunk)
             print(f"[highlights] chunk {i + 1}/{len(chunks)} (offset {offset:.0f}s)", flush=True)
-            result = call_highlight_api(text, content_info, chunk["duration"], num_clips=num_clips, is_chunk=True, llm_fn=llm_fn, clip_duration=clip_duration, transcript=chunk)
+            result = call_highlight_api(text, content_info, chunk["duration"], num_clips=num_clips, is_chunk=True, llm_fn=llm_fn, clip_duration=clip_duration, transcript=chunk, min_duration=min_duration)
             for h in result.get("highlights", []):
                 h["start_time"] = float(h["start_time"]) + offset
                 h["end_time"] = float(h["end_time"]) + offset
@@ -442,7 +447,24 @@ def get_highlights(
         highlights = dedupe_highlights(all_highlights)
     else:
         text = build_transcript_text(transcript)
-        result = call_highlight_api(text, content_info, duration, num_clips=num_clips, llm_fn=llm_fn, clip_duration=clip_duration, transcript=transcript)
+        result = call_highlight_api(text, content_info, duration, num_clips=num_clips, llm_fn=llm_fn, clip_duration=clip_duration, transcript=transcript, min_duration=min_duration)
         highlights = dedupe_highlights(result.get("highlights", []))
+
+    if min_duration > 0 and highlights:
+        filtered = [
+            h for h in highlights
+            if (float(h["end_time"]) - float(h["start_time"])) >= min_duration
+        ]
+        if filtered:
+            highlights = filtered
+        else:
+            # All clips were shorter than min_duration — warn and keep the longest ones
+            best_dur = max(float(h["end_time"]) - float(h["start_time"]) for h in highlights)
+            print(
+                f"[highlights] WARNING: No clips met min_duration={min_duration:.0f}s "
+                f"(longest found: {best_dur:.1f}s). Returning all available clips.",
+                flush=True,
+            )
+            # Still return them — don't crash with zero results
 
     return {"highlights": highlights}

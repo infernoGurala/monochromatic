@@ -42,6 +42,13 @@ def generate_shorts(
     clip_duration: str = "auto",
     crop_start: Optional[str] = None,
     crop_end: Optional[str] = None,
+    caption_font: str = "Impact",
+    caption_size: int = 52,
+    caption_color: str = "yellow",
+    caption_case: str = "upper",
+    min_duration: float = 0.0,
+    enable_subtitles: bool = True,
+    mode: Optional[str] = None,
 ) -> Dict:
     """Run the full pipeline and return a structured result.
 
@@ -55,14 +62,21 @@ def generate_shorts(
         clip_duration: target duration preference ("auto", "30", "60", "90").
         crop_start: start time for cropping/filtering (e.g. "01:30" or "90").
         crop_end: end time for cropping/filtering (e.g. "02:30" or "150").
+        caption_font: Font name for burn-in subtitles.
+        caption_size: Font size for burn-in subtitles.
+        caption_color: Highlight color for active word.
+        caption_case: Casing style.
+        min_duration: Minimum clip duration.
+        enable_subtitles: Enable burn-in subtitles.
+        mode: Ignored (legacy, retained for compatibility).
 
     Returns:
         {
           "mode": "local",
-          "source_video_url": str,   # local path to source video
+          "source_video_url": str,
           "transcript": {...},
-          "highlights": [...],       # all candidates ranked
-          "shorts": [...],           # top `num_clips` with local mp4 path
+          "highlights": [...],
+          "shorts": [...],
         }
     """
     source_path = download_youtube_local(youtube_url, fmt=download_format)
@@ -91,7 +105,7 @@ def generate_shorts(
         transcript["segments"] = filtered_segments
         transcript["duration"] = end_sec if end_sec != float('inf') else transcript.get("duration", 0.0)
 
-    highlights_result = get_highlights(transcript, num_clips=num_clips, llm_fn=call_local_llm, clip_duration=clip_duration)
+    highlights_result = get_highlights(transcript, num_clips=num_clips, llm_fn=call_local_llm, clip_duration=clip_duration, min_duration=min_duration)
     all_highlights: List[Dict] = highlights_result.get("highlights", [])
     if not all_highlights:
         raise RuntimeError("Highlight generator returned zero clips.")
@@ -99,7 +113,18 @@ def generate_shorts(
     top = sorted(all_highlights, key=lambda h: int(h.get("score", 0)), reverse=True)[:num_clips]
     print(f"[pipeline/local] cropping {len(top)} of {len(all_highlights)} candidates", flush=True)
 
-    shorts = crop_highlights_local(source_path, top, transcript, aspect_ratio=aspect_ratio, face_tracking=face_tracking)
+    shorts = crop_highlights_local(
+        source_path,
+        top,
+        transcript,
+        aspect_ratio=aspect_ratio,
+        face_tracking=face_tracking,
+        caption_font=caption_font,
+        caption_size=caption_size,
+        caption_color=caption_color,
+        caption_case=caption_case,
+        enable_subtitles=enable_subtitles
+    )
 
     return {
         "mode": "local",

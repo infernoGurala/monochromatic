@@ -50,7 +50,16 @@ def _format_ass_time(seconds: float) -> str:
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
 
-def _generate_ass_file(words: List[dict], start_offset: float, duration: float, ass_path: str):
+def _generate_ass_file(
+    words: List[dict],
+    start_offset: float,
+    duration: float,
+    ass_path: str,
+    font_name: str = "Impact",
+    font_size: int = 52,
+    active_color: str = "yellow",
+    text_case: str = "upper",
+):
     """Generate an Advanced SubStation Alpha (ASS) file with active word-level coloring."""
     # Filter and adjust word timestamps
     clip_words = []
@@ -79,6 +88,21 @@ def _generate_ass_file(words: List[dict], start_offset: float, duration: float, 
     if current_chunk:
         chunks.append(current_chunk)
 
+    # Active word color lookup
+    color_map = {
+        "yellow": "&H0000FFFF&",
+        "green": "&H0000FF00&",
+        "cyan": "&H00FFFF00&",
+        "red": "&H000000FF&",
+        "purple": "&H00FF007F&",
+        "white": "&H00FFFFFF&"
+    }
+    active_color_ass = color_map.get(active_color.lower(), "&H0000FFFF&")
+
+    # Sanitize font inputs
+    font_name_clean = "".join(c for c in font_name if c.isalnum() or c in " -_").strip() or "Impact"
+    font_size_val = max(10, min(120, font_size))
+
     # Build dialogue lines
     dialogue_lines = []
     for chunk_idx, chunk in enumerate(chunks):
@@ -97,17 +121,21 @@ def _generate_ass_file(words: List[dict], start_offset: float, duration: float, 
 
             text_parts = []
             for other_w in chunk:
+                word_str = other_w['word']
+                if text_case == "upper":
+                    word_str = word_str.upper()
+
                 if other_w == active_word:
-                    text_parts.append(f"{{\\c&H0000FFFF&}}{other_w['word'].upper()}{{\\c}}")
+                    text_parts.append(f"{{\\c{active_color_ass}}}{word_str}{{\\c}}")
                 else:
-                    text_parts.append(other_w['word'])
+                    text_parts.append(word_str)
 
             subtitle_text = " ".join(text_parts)
             start_fmt = _format_ass_time(frame_start)
             end_fmt = _format_ass_time(frame_end)
             dialogue_lines.append(f"Dialogue: 0,{start_fmt},{end_fmt},Default,,0,0,0,,{subtitle_text}")
 
-    header = """[Script Info]
+    header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 720
 PlayResY: 1280
@@ -115,7 +143,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Impact,52,&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,4,0,2,30,30,520,1
+Style: Default,{font_name_clean},{font_size_val},&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,4,0,2,30,30,520,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -298,6 +326,11 @@ def crop_highlights_local(
     aspect_ratio: str = "9:16",
     out_dir: Optional[str] = None,
     face_tracking: bool = False,
+    caption_font: str = "Impact",
+    caption_size: int = 52,
+    caption_color: str = "yellow",
+    caption_case: str = "upper",
+    enable_subtitles: bool = True,
 ) -> List[Dict]:
     out_dir = out_dir or get_local_output_dir()
     os.makedirs(out_dir, exist_ok=True)
@@ -317,13 +350,17 @@ def crop_highlights_local(
         print(f"[clip/local] {i}/{len(highlights)}: {h.get('title', '(untitled)')}", flush=True)
 
         has_subtitles = False
-        if all_words:
+        if enable_subtitles and all_words:
             try:
                 _generate_ass_file(
                     all_words,
                     float(h["start_time"]),
                     float(h["end_time"]) - float(h["start_time"]),
-                    ass_path
+                    ass_path,
+                    font_name=caption_font,
+                    font_size=caption_size,
+                    active_color=caption_color,
+                    text_case=caption_case
                 )
                 has_subtitles = True
             except Exception as e:
