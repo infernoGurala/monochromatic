@@ -128,6 +128,8 @@ def transcribe_local(media_path: str, language: Optional[str] = None) -> Dict:
     print(f"[transcribe/local] faster-whisper model={whisper_model} device={device}", flush=True)
 
     model = WhisperModel(whisper_model, device=device, compute_type=compute_type)
+    
+    # Try transcribing with VAD filter first
     segments_iter, info = model.transcribe(
         media_path,
         language=language,
@@ -153,6 +155,33 @@ def transcribe_local(media_path: str, language: Optional[str] = None) -> Dict:
             "text": (s.text or "").strip(),
             "words": words_list
         })
+
+    # Fallback to vad_filter=False if no segments were detected
+    if not segments:
+        print("[transcribe/local] VAD filter returned 0 segments; falling back to vad_filter=False", flush=True)
+        segments_iter, info = model.transcribe(
+            media_path,
+            language=language,
+            beam_size=5,
+            vad_filter=False,
+            condition_on_previous_text=False,
+            word_timestamps=True,
+        )
+        for s in segments_iter:
+            words_list = []
+            if hasattr(s, "words") and s.words:
+                for w in s.words:
+                    words_list.append({
+                        "start": float(w.start),
+                        "end": float(w.end),
+                        "word": str(w.word).strip(),
+                    })
+            segments.append({
+                "start": float(s.start),
+                "end": float(s.end),
+                "text": (s.text or "").strip(),
+                "words": words_list
+            })
 
     duration = float(getattr(info, "duration", 0.0)) or (segments[-1]["end"] if segments else 0.0)
     print(f"[transcribe/local] {len(segments)} segments, {duration:.0f}s of audio", flush=True)
