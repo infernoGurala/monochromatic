@@ -178,16 +178,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Custom Radio Toggles: Engine mode
-    const engineBtns = document.querySelectorAll('#api-mode-group .toggle-pill');
-    engineBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            engineBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            btn.querySelector('input[type="radio"]').checked = true;
-        });
-    });
-
     // Save configuration settings
     saveKeysBtn.addEventListener('click', async () => {
         saveKeysBtn.disabled = true;
