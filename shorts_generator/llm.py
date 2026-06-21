@@ -96,6 +96,17 @@ def call_groq_llm(prompt: str) -> str:
             raw_keys = content.replace(",", "\n").split("\n")
             keys = [k.strip() for k in raw_keys if k.strip()]
 
+    # Fallback to GROQ_API_KEY environment variable if API.txt is empty
+    if not keys:
+        try:
+            from dotenv import load_dotenv
+            load_dotenv(override=True)
+        except ImportError:
+            pass
+        env_key = os.getenv("GROQ_API_KEY")
+        if env_key and env_key.strip():
+            keys = [env_key.strip()]
+
     if not keys:
         raise RuntimeError(
             "No Groq API keys found. Please save them in the UI settings (saved to API.txt)."
