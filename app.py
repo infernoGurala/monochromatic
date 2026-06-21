@@ -318,6 +318,14 @@ def start_generation():
         return jsonify({"error": "Video URL is required."}), 400
 
     mode = data.get("mode", "local")
+    llm_provider = data.get("llm_provider")
+    if llm_provider:
+        env = read_env()
+        if env.get("LLM_PROVIDER") != llm_provider:
+            env["LLM_PROVIDER"] = llm_provider
+            write_env(env)
+            os.environ["LLM_PROVIDER"] = llm_provider
+
     gen_mode = data.get("gen_mode", "standard")  # standard | ranking | movie
     num_clips = int(data.get("num_clips", 3))
     aspect_ratio = data.get("aspect_ratio", "9:16")

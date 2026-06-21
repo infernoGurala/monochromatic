@@ -87,9 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Custom Radio Toggles: Generation Mode (API vs Local)
-    const modeBtnApi = document.getElementById('mode-api-btn');
-    const modeBtnLocal = document.getElementById('mode-local-btn');
+
 
 
     // ── 3-Way Generation Mode Selector ────────────────────────────────────
@@ -98,7 +96,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const genModeMovieBtn    = document.getElementById('gen-mode-movie-btn');
     const rankingPanel       = document.getElementById('ranking-panel');
     const moviePanel         = document.getElementById('movie-panel');
-    const apiModeGroup       = document.getElementById('api-mode-group');
     const clipsLabel         = document.getElementById('clips-label');
     const pipelineStepOcr    = document.getElementById('step-ocr');
     const pipelineStepScene  = document.getElementById('step-scene');
@@ -123,8 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (rankingPanel) rankingPanel.classList.toggle('hidden', mode !== 'ranking');
         if (moviePanel)   moviePanel.classList.toggle('hidden', mode !== 'movie');
 
-        // Show/hide API/Local engine toggle (not relevant for ranking/movie — always local)
-        if (apiModeGroup) apiModeGroup.classList.toggle('hidden', mode !== 'standard');
+
 
         // Update clips label
         if (clipsLabel) {
@@ -280,7 +276,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const genMode = (document.querySelector('input[name="gen_mode"]:checked') || {value: 'standard'}).value;
-        const mode = (document.querySelector('input[name="mode"]:checked') || {value: 'local'}).value;
+        const mode = 'local';
+        const llmProvider = llmProviderSelect.value;
         const numClips = numClipsInput.value;
         const aspect_ratio = document.querySelector('input[name="aspect_ratio"]:checked').value;
         const format = document.getElementById('format').value;
@@ -338,6 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     url,
                     mode,
                     gen_mode: genMode,
+                    llm_provider: llmProvider,
                     num_clips: numClips,
                     aspect_ratio,
                     format,
@@ -389,7 +387,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch('/api/config');
             const data = await res.json();
-            if (document.getElementById('muapi_key')) document.getElementById('muapi_key').value = data.MUAPI_API_KEY || '';
             if (document.getElementById('openai_key')) document.getElementById('openai_key').value = data.OPENAI_API_KEY || '';
             if (document.getElementById('gemini_key')) document.getElementById('gemini_key').value = data.GEMINI_API_KEY || '';
             if (document.getElementById('ollama_model')) document.getElementById('ollama_model').value = data.OLLAMA_MODEL || 'gemma4:e4b';
