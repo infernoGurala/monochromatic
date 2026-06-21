@@ -7,47 +7,56 @@ load_dotenv()
 # LLM & Pipeline Settings
 def get_local_whisper_model() -> str:
     load_dotenv(override=True)
-    return os.getenv("LOCAL_WHISPER_MODEL", "base").strip()
+    val = os.getenv("LOCAL_WHISPER_MODEL", "").strip()
+    return val if val else "base"
 
 
 def get_local_whisper_device() -> str:
     load_dotenv(override=True)
-    return os.getenv("LOCAL_WHISPER_DEVICE", "auto").strip()  # auto / cpu / cuda
+    val = os.getenv("LOCAL_WHISPER_DEVICE", "").strip()
+    return val if val else "auto"  # auto / cpu / cuda
 
 
 def get_local_output_dir() -> str:
     load_dotenv(override=True)
-    return os.getenv("LOCAL_OUTPUT_DIR", "output").strip()
+    val = os.getenv("LOCAL_OUTPUT_DIR", "").strip()
+    return val if val else "output"
 
 
 def get_llm_provider() -> str:
     load_dotenv(override=True)
-    return os.getenv("LLM_PROVIDER", "openai").strip().lower()
+    val = os.getenv("LLM_PROVIDER", "").strip().lower()
+    return val if val else "openai"
 
 
 def get_openai_model() -> str:
     load_dotenv(override=True)
-    return os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+    val = os.getenv("OPENAI_MODEL", "").strip()
+    return val if val else "gpt-4o-mini"
 
 
 def get_gemini_model() -> str:
     load_dotenv(override=True)
-    return os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+    val = os.getenv("GEMINI_MODEL", "").strip()
+    return val if val else "gemini-2.5-flash"
 
 
 def get_ollama_model() -> str:
     load_dotenv(override=True)
-    return os.getenv("OLLAMA_MODEL", "gemma4:e4b").strip()
+    val = os.getenv("OLLAMA_MODEL", "").strip()
+    return val if val else "gemma4:e4b"
 
 
 def get_ollama_base_url() -> str:
     load_dotenv(override=True)
-    return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").strip()
+    val = os.getenv("OLLAMA_BASE_URL", "").strip()
+    return val if val else "http://localhost:11434"
 
 
 def get_groq_model() -> str:
     load_dotenv(override=True)
-    return os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
+    val = os.getenv("GROQ_MODEL", "").strip()
+    return val if val else "llama-3.3-70b-versatile"
 
 
 def require_openai_key() -> str:
